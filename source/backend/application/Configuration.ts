@@ -1,7 +1,7 @@
 import { File } from "@lucania/toolbox/server";
 import { Schema } from "@lucania/schema";
 import { Path } from "./Path.js";
-import { Configuration as ConfigurationDefinition } from "@lucania/seam/shared";
+import { Configuration as ConfigurationDefinition } from "@lucania/seam.framework/shared";
 import { Data } from "@lucania/toolbox/shared";
 
 export class Configuration {
