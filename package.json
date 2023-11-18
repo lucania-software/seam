@@ -1,0 +1,56 @@
+{
+    "name": "@lucania/seam.framework",
+    "version": "2.0.0",
+    "description": "A foundational framework for powering extensible web projects.",
+    "type": "module",
+    "files": [
+        "/build"
+    ],
+    "exports": {
+        "./backend": {
+            "default": "./build/backend/index.js",
+            "types": "./source/backend/index.ts"
+        },
+        "./frontend": {
+            "default": "./build/frontend/index.js",
+            "types": "./source/frontend/index.ts"
+        },
+        "./shared": {
+            "default": "./build/shared/index.js",
+            "types": "./source/shared/index.ts"
+        }
+    },
+    "scripts": {
+        "setup": "npm install",
+        "clean": "rmdir /s /q build .transient node_modules",
+        "build-backend:clean": "npm run clean && npm run build-backend",
+        "build-backend": "npx tsc -p source/backend",
+        "build-backend:watch": "npx tsc -p source/backend --watch",
+        "build-frontend:clean": "npm run clean && npm run build-frontend",
+        "build-frontend": "npx tsc -p source/frontend",
+        "build-frontend:watch": "npx tsc -p source/frontend --watch",
+        "build-shared:clean": "npm run clean && npm run build-shared",
+        "build-shared": "npx tsc -p source/shared",
+        "build-shared:watch": "npx tsc -p source/shared --watch",
+        "build-all": "npm run build-shared && npm run build-backend && npm run build-frontend",
+        "start": "node build/backend/main.js",
+        "start:watch": "npx nodemon --watch build build/backend/main.js"
+    },
+    "keywords": [
+        "FreeCore"
+    ],
+    "author": "FreeCore",
+    "license": "UNLICENSED",
+    "dependencies": {
+        "@lucania/schema": "file:../../schema",
+        "@lucania/toolbox": "file:../../toolbox",
+        "express": "^4.18.2",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.9.0",
+        "typescript": "^5.2.2"
+    }
+}
