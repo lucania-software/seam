@@ -1,5 +1,5 @@
 import { Data, Error } from "@lucania/toolbox/shared";
-import createExpressEngine from "express";
+import createExpressEngine, { Request, Response } from "express";
 import { Express as ExpressEngine } from "express-serve-static-core";
 import type { Server } from "http";
 import type { HandleFunction } from "./Handler.js";
@@ -36,7 +36,10 @@ export class Router {
 
     public registerHandler(handler: Handler) {
         const register = this._getEngineRegistrationFunction(handler.method);
-        const handleFunction = handler.handle.bind(handler) as IdentifiedHandleFunction;
+        let handleFunction: IdentifiedHandleFunction = async (request, response, next) => {
+            Promise.resolve(handler.handle(request, response, next)).catch((error) => this._handleError(error, request, response));
+        };
+        handleFunction = handleFunction.bind(handler);
         const id = this._engineHandlerFunctionId++;
         handleFunction.engineHandlerFunctionId = id;
         register(handler.path, handleFunction);
@@ -90,6 +93,15 @@ export class Router {
             Data.assert(this._server !== undefined, "Attempted to stop router before it was started.");
             this._server.close((error) => error === undefined ? resolve() : reject(error));
         });
+    }
+
+    private _handleError(error: any, request: Request, response: Response) {
+        console.error(error);
+        if (error instanceof Error.Original) {
+            response.end(error.message);
+        } else {
+            response.end("Unknown error");
+        }
     }
 
     private _getEngineRegistrationFunction(method: Method) {
