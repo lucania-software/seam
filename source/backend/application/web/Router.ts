@@ -2,8 +2,8 @@ import { Data, Error } from "@lucania/toolbox/shared";
 import createExpressEngine from "express";
 import { Express as ExpressEngine } from "express-serve-static-core";
 import type { Server } from "http";
-import { Handler, Method, Priority } from "./Handler.js";
 import type { HandleFunction } from "./Handler.js";
+import { Handler, Method } from "./Handler.js";
 
 type IdentifiedHandleFunction = HandleFunction & { engineHandlerFunctionId?: number };
 

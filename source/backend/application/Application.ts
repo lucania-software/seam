@@ -4,7 +4,7 @@ import { CommandLine } from "./CommandLine.js";
 import { Configuration } from "./Configuration.js";
 import { PluginManager } from "./plugin/PluginManager.js";
 import { Router } from "./web/Router.js";
-import { CatchAllHandler } from "./web/handlers/CatchAllHandler.js";
+import { Handler, Method, Priority } from "./web/Handler.js";
 
 export class Application {
 
@@ -17,7 +17,14 @@ export class Application {
             const pluginManager = PluginManager.getInstance();
             const router = Router.getInstance();
 
-            router.registerHandler(new CatchAllHandler());
+            router.registerHandler(new Handler({
+                method: Method.GET,
+                path: "*/:cow",
+                priority: Priority.LOWEST,
+                handle: (request, response, next) => {
+                    response.end("No handlers defined to handle this request.");
+                }
+            }));
 
             commandLine.registerCommand("stop", () => this.stop());
             commandLine.registerCommand("reload", (pluginName) => {
@@ -33,11 +40,26 @@ export class Application {
             await configuration.load();
             commandLine.start();
 
-            await pluginManager.setup();
+            await pluginManager.setup(configuration.raw.plugins);
             await pluginManager.loadAll();
 
             console.info(`Started web server running at ${configuration.raw.web.host}:${configuration.raw.web.port}.`);
             await router.start(configuration.raw.web.port, configuration.raw.web.host);
+
+            configuration.on("change", async (path: string) => {
+                if (["web.host", "web.port"].includes(path)) {
+                    console.info("Detected changes to router configuration...");
+                    await router.stop();
+                    await router.start(configuration.raw.web.port, configuration.raw.web.host);
+                    console.info(`Restarted router. Now running at ${configuration.raw.web.host}:${configuration.raw.web.port}.`);
+                }
+                if (path.startsWith("plugins")) {
+                    console.info("Detected changes to plugin configuration...");
+                    await pluginManager.unloadAll(true);
+                    await pluginManager.setup(configuration.raw.plugins);
+                    await pluginManager.loadAll();
+                }
+            });
         } catch (error) {
             if (error instanceof Schema.ValidationError) {
                 console.error(error.message);

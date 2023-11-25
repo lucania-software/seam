@@ -1,4 +1,4 @@
-export class Endpoint {
+export class RestEndpoint {
 
     public constructor() {
         

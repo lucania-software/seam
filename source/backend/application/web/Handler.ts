@@ -26,30 +26,38 @@ export enum Priority {
 }
 
 export type HandleFunction<
+    Path extends string = string,
     RequestBody = any,
     ResponseBody = any,
     RequestQuery extends Query = Query,
     Locals extends Record<string, any> = Record<string, any>,
-    Path extends string = string,
     Parameters = RouteParameters<Path>
 > = (
-    request: Request<Path, ResponseBody, RequestBody, RequestQuery, Locals>,
+    request: Request<Parameters, ResponseBody, RequestBody, RequestQuery, Locals>,
     response: Response<RequestBody, Locals>,
     next: NextFunction
 ) => Promise<void> | void;
 
-export type HandlerOptions<Path extends string> = {
-    method: Method,
-    path: Path,
-    priority?: number
-};
-
-export class Handler<
+export type HandlerOptions<
+    Path extends string = string,
     RequestBody = any,
     ResponseBody = any,
     RequestQuery extends Query = Query,
     Locals extends Record<string, any> = Record<string, any>,
+    Parameters = RouteParameters<Path>
+> = {
+    method: Method,
+    path: Path,
+    priority?: number,
+    handle: HandleFunction<Path, RequestBody, ResponseBody, RequestQuery, Locals, Parameters>
+};
+
+export class Handler<
     Path extends string = string,
+    RequestBody = any,
+    ResponseBody = any,
+    RequestQuery extends Query = Query,
+    Locals extends Record<string, any> = Record<string, any>,
     Parameters = RouteParameters<Path>
 > {
 
@@ -57,13 +65,13 @@ export class Handler<
     public readonly path: Path;
     public readonly priority: number;
 
-    protected _handle: HandleFunction<RequestBody, ResponseBody, RequestQuery, Locals, Path, Parameters>;
+    protected _handle: HandleFunction<Path, RequestBody, ResponseBody, RequestQuery, Locals, Parameters>;
 
-    public constructor(options: HandlerOptions<Path>, handle: HandleFunction<RequestBody, ResponseBody, RequestQuery, Locals, Path, Parameters>) {
+    public constructor(options: HandlerOptions<Path, RequestBody, ResponseBody, RequestQuery, Locals, Parameters>) {
         this.method = options.method;
         this.path = options.path;
         this.priority = Data.get(options, "priority", Priority.NORMAL);
-        this._handle = handle;
+        this._handle = options.handle;
     }
 
     public get handle() {

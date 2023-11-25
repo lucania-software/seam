@@ -4,7 +4,6 @@ import { ConsoleColor, Data, Error, Text } from "@lucania/toolbox/shared";
 import { basename, join, posix, relative, resolve, sep } from "path";
 import TypeScript from "typescript";
 import { pathToFileURL } from "url";
-import { Configuration } from "../Configuration.js";
 import { Path } from "../Path.js";
 import { Plugin } from "./Plugin.js";
 
@@ -59,12 +58,15 @@ export class PluginManager {
         }
     }
 
-    public async unload(plugin: Plugin | string) {
+    public async unload(plugin: Plugin | string, unregister: boolean) {
         plugin = typeof plugin === "string" ? this.getPluginSafe(plugin) : plugin;
         const { cyan, reset } = ConsoleColor.Common;
         console.info(`Unloading plugin ${cyan}${plugin.name}${reset}.`);
         if (plugin.unloadDefinition !== undefined) {
             await Promise.resolve(plugin.unloadDefinition.call(plugin));
+        }
+        if (unregister) {
+            delete this._map[plugin.name];
         }
     }
 
@@ -84,7 +86,7 @@ export class PluginManager {
         await this._updatePluginCache(plugin.name);
         await this._updateExporter();
 
-        await this.unload(plugin);
+        await this.unload(plugin, false);
         await this.load(plugin);
     }
 
@@ -98,14 +100,12 @@ export class PluginManager {
         return plugin;
     }
 
-    public async setup() {
-        const configuration = Configuration.getInstance();
-        Data.assert(configuration.loaded, "Attempted to setup plugin manager before configuration was loaded.");
+    public async setup(pluginSpecifiers: string[]) {
         await File.remove(Path.Directory.Absolute.Plugin.cache);
         await File.createDirectory(Path.Directory.Absolute.Plugin.cache);
         await File.write(Path.File.Absolute.Plugin.exporter, "", "utf8");
 
-        const pluginSpecifiers = this._getNormalizedPluginSpecifiers(configuration.raw.plugins);
+        const normalizedPluginSpecifiers = this._getNormalizedPluginSpecifiers(pluginSpecifiers);
 
         const pluginsToUpdateSpecifiers = [];
         for (const file of await File.listDirectory(Path.Directory.Absolute.plugins)) {
@@ -118,7 +118,7 @@ export class PluginManager {
             }
         }
         if (await File.exists(Path.File.Absolute.Plugin.packageJson)) {
-            for (const specifier of pluginSpecifiers) {
+            for (const specifier of normalizedPluginSpecifiers) {
                 const pluginName = this.getPluginName(specifier, await this.getPluginModulesProjectPackageJson());
                 if (pluginName === undefined) {
                     pluginsToUpdateSpecifiers.push(specifier);
@@ -127,7 +127,7 @@ export class PluginManager {
                 }
             }
         } else {
-            pluginsToUpdateSpecifiers.push(...pluginSpecifiers);
+            pluginsToUpdateSpecifiers.push(...normalizedPluginSpecifiers);
             await File.write(
                 Path.File.Absolute.Plugin.packageJson,
                 JSON.stringify(PluginManager.DEFAULT_PACKAGE_JSON, undefined, "    "),
@@ -138,7 +138,7 @@ export class PluginManager {
         await PluginManager._installPlugins(...pluginsToUpdateSpecifiers);
         await this._ensureFrameworkLinked();
 
-        for (const pluginSpecifier of pluginSpecifiers) {
+        for (const pluginSpecifier of normalizedPluginSpecifiers) {
             const pluginName = this.getPluginName(pluginSpecifier, await this.getPluginModulesProjectPackageJson());
             if (pluginName === undefined) {
                 console.warn(`Failed to load plugin specified by "${pluginSpecifier}".`);
@@ -234,9 +234,9 @@ export class PluginManager {
         }
     }
 
-    public async unloadAll() {
+    public async unloadAll(unregister: boolean) {
         for (const plugin of Object.values(this._map).reverse()) {
-            await this.unload(plugin);
+            await this.unload(plugin, unregister);
         }
     }
 
