@@ -26,12 +26,34 @@ export class Application {
                 }
             }));
 
+            router.registerHandler(new Handler<string, any, any, { command?: string }>({
+                method: Method.GET,
+                path: "/api/development",
+                handle: async (request, response) => {
+                    Data.assert(request.query.command !== undefined, "Please specify a command you wish to execute.");
+                    await commandLine.execute(request.query.command.replaceAll(/_/g, " "));
+                    response.end();
+                }
+            }));
+
             commandLine.registerCommand("stop", () => this.stop());
             commandLine.registerCommand("reload", (pluginName) => {
                 Data.assert(pluginName !== undefined, "Please specify the name of the plugin you wish to reload.");
                 const plugin = pluginManager.getPlugin(pluginName);
                 Data.assert(plugin !== undefined, `There are no plugins registered with the name "${pluginName}".`);
                 pluginManager.reload(plugin);
+            });
+            commandLine.registerCommand("load", (pluginName) => {
+                Data.assert(pluginName !== undefined, "Please specify the name of the plugin you wish to reload.");
+                const plugin = pluginManager.getPlugin(pluginName);
+                Data.assert(plugin !== undefined, `There are no plugins registered with the name "${pluginName}".`);
+                pluginManager.load(plugin);
+            });
+            commandLine.registerCommand("unload", (pluginName) => {
+                Data.assert(pluginName !== undefined, "Please specify the name of the plugin you wish to reload.");
+                const plugin = pluginManager.getPlugin(pluginName);
+                Data.assert(plugin !== undefined, `There are no plugins registered with the name "${pluginName}".`);
+                pluginManager.unload(plugin, false);
             });
             commandLine.registerCommand("test", async () => {
                 await pluginManager.reload("@lucania/seam.plugin.essentials");
@@ -68,7 +90,6 @@ export class Application {
             }
         }
     }
-
 
     public async stop() {
         const pluginManager = PluginManager.getInstance();
