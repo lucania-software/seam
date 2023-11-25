@@ -1,3 +1,4 @@
+import { Data } from "@lucania/toolbox/shared";
 import type { Query, NextFunction, Request, Response, RouteParameters } from "express-serve-static-core";
 
 export enum Method {
@@ -14,7 +15,17 @@ export enum Method {
 
 }
 
-type HandleFunction<
+export enum Priority {
+
+    HIGHEST = 1,
+    HIGH = 3,
+    NORMAL = 5,
+    LOW = 7,
+    LOWEST = 10
+
+}
+
+export type HandleFunction<
     RequestBody = any,
     ResponseBody = any,
     RequestQuery extends Query = Query,
@@ -27,7 +38,13 @@ type HandleFunction<
     next: NextFunction
 ) => Promise<void> | void;
 
-export abstract class Handler<
+export type HandlerOptions<Path extends string> = {
+    method: Method,
+    path: Path,
+    priority?: number
+};
+
+export class Handler<
     RequestBody = any,
     ResponseBody = any,
     RequestQuery extends Query = Query,
@@ -38,12 +55,14 @@ export abstract class Handler<
 
     public readonly method: Method;
     public readonly path: Path;
+    public readonly priority: number;
 
     protected _handle: HandleFunction<RequestBody, ResponseBody, RequestQuery, Locals, Path, Parameters>;
 
-    public constructor(method: Method, path: Path, handle: HandleFunction<RequestBody, ResponseBody, RequestQuery, Locals, Path, Parameters>) {
-        this.method = method;
-        this.path = path;
+    public constructor(options: HandlerOptions<Path>, handle: HandleFunction<RequestBody, ResponseBody, RequestQuery, Locals, Path, Parameters>) {
+        this.method = options.method;
+        this.path = options.path;
+        this.priority = Data.get(options, "priority", Priority.NORMAL);
         this._handle = handle;
     }
 

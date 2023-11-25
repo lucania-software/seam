@@ -1,11 +1,23 @@
 {
-	"folders": [
-		{
-			"path": ".."
-		},
-		{
-			"path": "../../plugins"
-		}
-	],
-    "settings": {}
+    "folders": [
+        {
+            "path": ".."
+        },
+        {
+            "path": "../../plugins"
+        }
+    ],
+    "settings": {
+        "typescript.preferences.autoImportFileExcludePatterns": [
+            "./source/*/index.ts"
+        ],
+        "json.schemas": [
+            {
+                "fileMatch": [
+                    "bundle/configuration.json"
+                ],
+                "url": "../development/jsonSchema/configuration.json"
+            }
+        ],
+    }
 }

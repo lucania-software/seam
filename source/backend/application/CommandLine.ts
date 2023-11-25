@@ -25,7 +25,7 @@ export class CommandLine {
                     command.callback(...commandArguments);
                 } catch (error) {
                     if (error instanceof Error.Assertion) {
-                        console.log(error.message);
+                        console.error(error.message);
                     } else {
                         throw error;
                     }

@@ -291,6 +291,11 @@ export class PluginManager {
                 const relativeFilePath = relative(Path.Directory.Absolute.plugins, filePath);
                 const npmRelativeFilePath = posix.join(...relativeFilePath.split(sep));
                 normalizedPluginSpecifiers.push(fileSpecifierPrefix + npmRelativeFilePath);
+            } else if (pluginSpecifier.startsWith(".")) {
+                const filePath = resolve(Path.Directory.Absolute.root, pluginSpecifier);
+                const relativeFilePath = relative(Path.Directory.Absolute.plugins, filePath);
+                const npmRelativeFilePath = posix.join(...relativeFilePath.split(sep));
+                normalizedPluginSpecifiers.push(fileSpecifierPrefix + npmRelativeFilePath);
             } else {
                 normalizedPluginSpecifiers.push(pluginSpecifier);
             }

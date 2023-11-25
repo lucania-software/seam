@@ -1,0 +1,69 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "build-all:watch",
+            "dependsOrder": "parallel",
+            "dependsOn": [
+                "build-backend:watch",
+                "build-frontend:watch",
+                "build-shared:watch"
+            ]
+        },
+        {
+            "type": "npm",
+            "script": "build-backend:watch",
+            "group": "build",
+            "problemMatcher": [],
+            "label": "build-backend:watch",
+            "detail": "npx tsc -p source/backend --watch",
+            "isBackground": true,
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true,
+                "group": "build"
+            }
+        },
+        {
+            "type": "npm",
+            "script": "build-frontend:watch",
+            "group": "build",
+            "problemMatcher": [],
+            "label": "build-frontend:watch",
+            "detail": "npx tsc -p source/frontend --watch",
+            "isBackground": true,
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true,
+                "group": "build"
+            }
+        },
+        {
+            "type": "npm",
+            "script": "build-shared:watch",
+            "group": "build",
+            "problemMatcher": [],
+            "label": "build-shared:watch",
+            "detail": "npx tsc -p source/shared --watch",
+            "isBackground": true,
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true,
+                "group": "build"
+            }
+        }
+    ]
+}

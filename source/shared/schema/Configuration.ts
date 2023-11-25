@@ -9,7 +9,7 @@ export namespace Configuration {
             host: type.string,
             port: type.number
         },
-        plugins: type.array(type.string)
+        plugins: type.array(type.string).default([])
     }));
 
     export type Type = Schema.Model<typeof Schema>;

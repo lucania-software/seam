@@ -34,7 +34,8 @@
         "build-shared:watch": "npx tsc -p source/shared --watch",
         "build-all": "npm run build-shared && npm run build-backend && npm run build-frontend",
         "start": "node build/backend/main.js",
-        "start:watch": "npx nodemon --watch build build/backend/main.js"
+        "start:watch": "npx nodemon --watch build build/backend/main.js",
+        "postinstall": "node development/scripts/postInstall"
     },
     "keywords": [
         "FreeCore"
