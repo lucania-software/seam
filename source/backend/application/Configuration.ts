@@ -32,6 +32,11 @@ export class Configuration extends EventEmitter {
                 }
             }
         });
+
+        this._watcher.on("unlink", async () => {
+            console.info("Detected configuration deletion. Regenerating...");
+            await File.write(Path.File.Absolute.configuration, JSON.stringify(this._raw, undefined, "    "));
+        });
     }
 
     public async load() {
