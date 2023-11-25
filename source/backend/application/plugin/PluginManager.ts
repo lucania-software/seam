@@ -303,6 +303,24 @@ export class PluginManager {
         return normalizedPluginSpecifiers;
     }
 
+    public async getBundledFilePath(plugin: Plugin | string, path: string) {
+        plugin = typeof plugin === "string" ? this.getPluginSafe(plugin) : plugin;
+        const directory = this.getPluginCachedRootDirectory(plugin.name);
+        const filePath = join(directory, path);
+        Data.assert(await File.exists(filePath), `${plugin.name} does not have a bundled file at "${path}".`);
+        return filePath;
+    }
+
+    public async readBundledFile(plugin: Plugin | string, path: string): Promise<Buffer>;
+    public async readBundledFile(plugin: Plugin | string, path: string, encoding: BufferEncoding): Promise<string>;
+    public async readBundledFile(plugin: Plugin | string, path: string, encoding?: BufferEncoding) {
+        if (encoding === undefined) {
+            return await File.read(await this.getBundledFilePath(plugin, path));
+        } else {
+            return await File.read(await this.getBundledFilePath(plugin, path), encoding);
+        }
+    }
+
     public async getProjectPackageJson() {
         const packageJsonString = await File.read(Path.File.Absolute.packageJson, "utf8");
         const packageJsonData = JSON.parse(packageJsonString);
