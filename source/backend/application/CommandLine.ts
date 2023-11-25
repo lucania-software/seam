@@ -1,7 +1,7 @@
 import { Data, Error } from "@lucania/toolbox/shared";
 import Readline from "readline";
 
-export type CommandCallback = (...commandArguments: string[]) => void;
+export type CommandCallback = (...commandArguments: string[]) => Promise<void> | void;
 export type Command = { match: string | RegExp, callback: CommandCallback };
 
 export class CommandLine {
@@ -18,19 +18,7 @@ export class CommandLine {
     public start() {
         this._interface = Readline.createInterface({ input: process.stdin });
         this._interface.addListener("line", async (input) => {
-            const [commandInput, ...commandArguments] = input.split(/\s+/g);
-            const command = this._getCommand(commandInput);
-            if (command !== undefined) {
-                try {
-                    command.callback(...commandArguments);
-                } catch (error) {
-                    if (error instanceof Error.Assertion) {
-                        console.error(error.message);
-                    } else {
-                        throw error;
-                    }
-                }
-            }
+            this.execute(input);
         });
     }
 
@@ -43,6 +31,22 @@ export class CommandLine {
             });
             this._interface.close();
         });
+    }
+
+    public async execute(input: string) {
+        const [commandInput, ...commandArguments] = input.split(/\s+/g);
+        const command = this._getCommand(commandInput);
+        if (command !== undefined) {
+            try {
+                await Promise.resolve(command.callback(...commandArguments));
+            } catch (error) {
+                if (error instanceof Error.Assertion) {
+                    console.error(error.message);
+                } else {
+                    throw error;
+                }
+            }
+        }
     }
 
     public registerCommand(match: string | RegExp, callback: CommandCallback) {
