@@ -4,7 +4,7 @@
             "path": ".."
         },
         {
-            "path": "../../plugins"
+            "path": "../../../FreeCore/plugins"
         }
     ],
     "settings": {

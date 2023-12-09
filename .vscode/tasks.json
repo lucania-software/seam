@@ -3,6 +3,15 @@
     "tasks": [
         {
             "type": "shell",
+            "label": "develop",
+            "dependsOrder": "parallel",
+            "dependsOn": [
+                "build-all:watch",
+                "start:watch",
+            ]
+        },
+        {
+            "type": "shell",
             "label": "build-all:watch",
             "dependsOrder": "parallel",
             "dependsOn": [
@@ -17,7 +26,7 @@
             "group": "build",
             "problemMatcher": [],
             "label": "build-backend:watch",
-            "detail": "npx tsc -p source/backend --watch",
+            "detail": "Build the back-end in watch mode",
             "isBackground": true,
             "presentation": {
                 "echo": false,
@@ -35,7 +44,7 @@
             "group": "build",
             "problemMatcher": [],
             "label": "build-frontend:watch",
-            "detail": "npx tsc -p source/frontend --watch",
+            "detail": "Build the front-end in watch mode.",
             "isBackground": true,
             "presentation": {
                 "echo": false,
@@ -53,7 +62,7 @@
             "group": "build",
             "problemMatcher": [],
             "label": "build-shared:watch",
-            "detail": "npx tsc -p source/shared --watch",
+            "detail": "Build the shared library in watch mode.",
             "isBackground": true,
             "presentation": {
                 "echo": false,
@@ -64,6 +73,47 @@
                 "clear": true,
                 "group": "build"
             }
+        },
+        {
+            "type": "npm",
+            "script": "start:watch",
+            "group": "build",
+            "problemMatcher": [],
+            "label": "start:watch",
+            "detail": "Run Seam in watch mode.",
+            "isBackground": true,
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            }
+        },
+        {
+            "type": "npm",
+            "script": "watch-plugin -- ${input:pluginPaths}",
+            "problemMatcher": [],
+            "label": "watch-plugin",
+            "detail": "Watch a plugin development project, and notify the framework about updates.",
+            "isBackground": true,
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "pluginPaths",
+            "type": "promptString",
+            "default": "../plugins/<name>",
+            "description": "A comma delineated list of paths to your plugins' root development directories (Relative to framework root, or absolute)."
         }
     ]
 }
