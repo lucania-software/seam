@@ -19,5 +19,6 @@
                 "url": "../development/jsonSchema/configuration.json"
             }
         ],
+        "typescript.tsdk": "seam\\node_modules\\typescript\\lib",
     }
 }
