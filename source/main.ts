@@ -1,10 +1,7 @@
 import { Seam } from "./Seam.js";
 
 // Create an instance of Seam.
-const seam = new Seam({
-    rootDirectory: "test",
-    cacheBust: true
-});
+const seam = new Seam({ rootDirectory: "test" });
 
 // // Ensure you're not running outdated plugins.
 // await seam.uninstallAllPlugins();

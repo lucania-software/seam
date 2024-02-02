@@ -5,19 +5,19 @@ import { join, posix, relative, resolve, sep as separator } from "path";
 import { pathToFileURL } from "url";
 import { PackageJson } from "./schema/PackageJson.js";
 
-type RegisteredPlugin = {
-    loadDefinition?: () => Promise<void> | void;
-    unloadDefinition?: () => Promise<void> | void;
+type RegisteredPlugin<LoadResult = any, UnloadResult = any> = {
+    loadDefinition?: () => Promise<LoadResult> | LoadResult;
+    unloadDefinition?: () => Promise<UnloadResult> | UnloadResult;
 };
 
+type LoadResults<LoadResult = any> = Record<string, LoadResult>;
+
 export type SeamOptions = {
-    rootDirectory: string,
-    cacheBust?: boolean
+    rootDirectory: string
 };
 
 export class Seam {
 
-    private static readonly CACHE_DIRECTORY = "cache";
     private static readonly INSTALLATION_DIRECTORY = "installation";
     private static readonly PACKAGE_JSON_FILE = "package.json";
     private static readonly NODE_MODULES_DIRECTORY = "node_modules";
@@ -29,14 +29,11 @@ export class Seam {
     private _pluginsInstallationDirectory: string;
     private _pluginsInstallationPackageJson: string;
     private _pluginsInstallationNodeModulesDirectory: string;
-    private _pluginsCacheDirectory?: string;
 
     private readonly _pluginRegister: Record</* Plugin Name */ string, RegisteredPlugin>;
     private readonly _specifierMap: Record</* Plugin Specifier */ string, /* Plugin Name */ string>;
     private readonly _loaded: Set</* Plugin Name */ string>;
     private readonly _reloading: Set</* Plugin Name */ string>;
-
-    private _cacheNumber: number;
 
     private _installationFlags: string[]
 
@@ -47,38 +44,32 @@ export class Seam {
         this._pluginsInstallationPackageJson = join(this._pluginsInstallationDirectory, Seam.PACKAGE_JSON_FILE);
         this._pluginsInstallationNodeModulesDirectory = join(this._pluginsInstallationDirectory, Seam.NODE_MODULES_DIRECTORY);
 
-        this._pluginsCacheDirectory = options.cacheBust === true ? join(this._rootDirectory, Seam.CACHE_DIRECTORY) : undefined;
-
         this._pluginRegister = {};
         this._specifierMap = {};
         this._loaded = new Set();
         this._reloading = new Set();
-
-        this._cacheNumber = 0;
 
         this._installationFlags = [
             "--no-progress",
             "--no-audit",
             "--save",
             "--package-lock=false",
-            "--omit=dev",
-            // TO-DO
-            // Can't use because it breaks relative file dependencies
-            // Have to use, otherwise symlinks all resolve to same filepath, no busting cache. 
-            "--install-links"
+            "--omit=dev"
         ];
     }
 
-    public async loadPlugins(...names: string[]) {
+    public async loadPlugins(...names: string[]): Promise<LoadResults> {
+        const loadResults: LoadResults = {};
         for (const name of names) {
             Data.assert(this.isPluginRegistered(name), `${name} is not a registered plugin!`);
             Data.assert(!this.isPluginLoaded(name), `${name} is already loaded!`);
             const registeredPlugin = this._pluginRegister[name];
             if (registeredPlugin.loadDefinition !== undefined) {
-                await Promise.resolve(registeredPlugin.loadDefinition.call(name));
+                loadResults[name] = await Promise.resolve(registeredPlugin.loadDefinition.call(name));
             }
             this._loaded.add(name);
         }
+        return loadResults;
     }
 
     public async unloadPlugin(name: string) {
@@ -141,12 +132,8 @@ export class Seam {
                     unloadDefinition = undefined;
                 }
                 const { yellow, reset } = ConsoleColor.Common;
-                if (loadDefinition === undefined && unloadDefinition === undefined) {
-                    console.warn(`${yellow}${name}${reset} does not export a ${Seam.ON_LOAD_CALLBACK_NAME} or ${Seam.ON_UNLOAD_CALLBACK_NAME} function.`);
-                } else if (loadDefinition === undefined) {
+                if (loadDefinition === undefined) {
                     console.warn(`${yellow}${name}${reset} does not export a ${Seam.ON_LOAD_CALLBACK_NAME} function.`);
-                } else if (unloadDefinition === undefined) {
-                    console.warn(`${yellow}${name}${reset} does not export a ${Seam.ON_UNLOAD_CALLBACK_NAME} function.`);
                 }
                 this._pluginRegister[name] = { loadDefinition, unloadDefinition };
             }
@@ -184,14 +171,6 @@ export class Seam {
             );
             await this._unpackSymlinks();
             packageJson = await this._readPackageJson();
-
-            if (this._pluginsCacheDirectory !== undefined) {
-                this._cacheNumber++;
-                if (this._cacheNumber > 1) {
-                    await File.copy(this._pluginsInstallationDirectory, this._getUsageDirectory());
-                    await this._resolveRelativeFileDependencies(this._getUsagePackageJson(), this._pluginsInstallationDirectory);
-                }
-            }
         } catch (error) {
             if (error instanceof Error) {
                 let formattedErrorMessage = error.message;
@@ -239,12 +218,7 @@ export class Seam {
         for (const name of this.getRegisteredPlugins()) {
             this.unregisterPlugin(name);
         }
-        const tasks = [];
-        if (this._pluginsCacheDirectory) {
-            tasks.push(File.remove(this._pluginsCacheDirectory));
-        }
-        tasks.push(File.remove(this._pluginsInstallationDirectory));
-        await Promise.all(tasks);
+        await File.remove(this._pluginsInstallationDirectory);
     }
 
     public isPluginLoaded(name: string) {
@@ -293,20 +267,12 @@ export class Seam {
         return normalizedPluginSpecifiers;
     }
 
-    private _getUsageDirectory() {
-        if (this._pluginsCacheDirectory === undefined || this._cacheNumber <= 1) {
-            return this._pluginsInstallationDirectory;
-        } else {
-            return join(this._pluginsCacheDirectory, this._cacheNumber.toString());
-        }
-    }
-
     private _getUsagePackageJson() {
-        return join(this._getUsageDirectory(), Seam.PACKAGE_JSON_FILE);
+        return join(this._pluginsInstallationDirectory, Seam.PACKAGE_JSON_FILE);
     }
 
     private _getUsageNodeModulesDirectory() {
-        return join(this._getUsageDirectory(), Seam.NODE_MODULES_DIRECTORY);
+        return join(this._pluginsInstallationDirectory, Seam.NODE_MODULES_DIRECTORY);
     }
 
     private async _isPackageJsonExistent() {
