@@ -9,10 +9,11 @@
     "main": "build/index.js",
     "scripts": {
         "setup": "npm install",
-        "clean": "rmdir /s /q build .transient node_modules",
+        "clean": "rmdir /s /q build node_modules",
         "build:clean": "npm run clean && npm run build",
         "build": "npx tsc -p source/",
-        "build:watch": "npx tsc -p source/ --watch"
+        "build:watch": "npx tsc -p source/ --watch",
+        "push": "npm run build:clean && npm publish --access public"
     },
     "keywords": [
         "FreeCore"
@@ -24,7 +25,7 @@
         "@lucania/toolbox": "file:../toolbox"
     },
     "devDependencies": {
-        "@types/node": "^20.9.0",
+        "@types/node": "^20.11.30",
         "typescript": "^5.2.2"
     }
 }
