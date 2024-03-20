@@ -1,24 +1,23 @@
-import { Schema } from "@lucania/schema"
-
-const { build } = Schema;
+import { $ } from "@lucania/schema"
 
 export namespace PackageJson {
 
-    export const Schema = build((type) => ({
-        name: type.string.required(),
-        type: type.string.optional(),
-        main: type.string.optional(),
-        files: type.array(type.string).optional(),
-        exports: type.dynamic(type.logic.or(
-            type.string,
-            {
-                node: type.string.optional(),
-                default: type.string.optional()
-            }
-        )).optional(),
-        dependencies: type.dynamic(type.string).optional()
-    }));
+    export const Schema = $.Object({
+        name: $.String(),
+        type: $.String(false),
+        main: $.String(false),
+        files: $.Array($.String(), true, []),
+        exports: $.DynamicObject(
+            $.OrSet($.Members(
+                $.String(),
+                $.Object({ node: $.String(false), default: $.String(false) })
+            )),
+            true, {}
+        ),
+        dependencies: $.DynamicObject($.String(), true, {}),
+        config: $.Any(true, {})
+    });
 
-    export type Type = Schema.Model<typeof Schema>;
+    export type Type = $.Model<typeof Schema>;
 
 }
