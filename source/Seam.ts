@@ -6,8 +6,9 @@ import { pathToFileURL } from "url";
 import { PackageJson } from "./schema/PackageJson.js";
 
 type RegisteredPlugin<LoadResult = any, UnloadResult = any> = {
-    loadDefinition?: () => Promise<LoadResult> | LoadResult;
-    unloadDefinition?: () => Promise<UnloadResult> | UnloadResult;
+    package: PackageJson.Type,
+    loadDefinition?: (this: PackageJson.Type) => Promise<LoadResult> | LoadResult;
+    unloadDefinition?: (this: PackageJson.Type) => Promise<UnloadResult> | UnloadResult;
 };
 
 type LoadResults<LoadResult = any> = Record<string, LoadResult>;
@@ -18,7 +19,6 @@ export type SeamOptions = {
 
 export class Seam {
 
-    private static readonly INSTALLATION_DIRECTORY = "installation";
     private static readonly PACKAGE_JSON_FILE = "package.json";
     private static readonly NODE_MODULES_DIRECTORY = "node_modules";
 
@@ -26,7 +26,6 @@ export class Seam {
     private static readonly ON_UNLOAD_CALLBACK_NAME = "onUnload";
 
     private _rootDirectory: string;
-    private _pluginsInstallationDirectory: string;
     private _pluginsInstallationNodeModulesDirectory: string;
 
     private readonly _pluginRegister: Record</* Plugin Name */ string, RegisteredPlugin>;
@@ -39,8 +38,7 @@ export class Seam {
     public constructor(options: SeamOptions) {
         this._rootDirectory = resolve(options.rootDirectory);
 
-        this._pluginsInstallationDirectory = join(this._rootDirectory, Seam.INSTALLATION_DIRECTORY);
-        this._pluginsInstallationNodeModulesDirectory = join(this._pluginsInstallationDirectory, Seam.NODE_MODULES_DIRECTORY);
+        this._pluginsInstallationNodeModulesDirectory = join(this._rootDirectory, Seam.NODE_MODULES_DIRECTORY);
 
         this._pluginRegister = {};
         this._specifierMap = {};
@@ -63,7 +61,7 @@ export class Seam {
             Data.assert(!this.isPluginLoaded(name), `${name} is already loaded!`);
             const registeredPlugin = this._pluginRegister[name];
             if (registeredPlugin.loadDefinition !== undefined) {
-                loadResults[name] = await Promise.resolve(registeredPlugin.loadDefinition.call(name));
+                loadResults[name] = await Promise.resolve(registeredPlugin.loadDefinition.call(registeredPlugin.package));
             }
             this._loaded.add(name);
         }
@@ -75,7 +73,7 @@ export class Seam {
         Data.assert(this.isPluginLoaded(name), `${name} is not loaded!`);
         const registeredPlugin = this._pluginRegister[name];
         if (registeredPlugin.unloadDefinition !== undefined) {
-            await Promise.resolve(registeredPlugin.unloadDefinition.call(name));
+            await Promise.resolve(registeredPlugin.unloadDefinition.call(registeredPlugin.package));
         }
         this._loaded.delete(name);
     }
@@ -119,8 +117,8 @@ export class Seam {
                 }
             }
             if (resolution !== undefined) {
-                console.log("Executing registration", resolution);
                 const module = await import(resolution);
+                const packageJson = await this.getPluginPackageJson(name);
                 let loadDefinition = module[Seam.ON_LOAD_CALLBACK_NAME];
                 let unloadDefinition = module[Seam.ON_UNLOAD_CALLBACK_NAME];
                 if (typeof loadDefinition !== "function") {
@@ -133,7 +131,7 @@ export class Seam {
                 if (loadDefinition === undefined) {
                     console.warn(`${yellow}${name}${reset} does not export a ${Seam.ON_LOAD_CALLBACK_NAME} function.`);
                 }
-                this._pluginRegister[name] = { loadDefinition, unloadDefinition };
+                this._pluginRegister[name] = { loadDefinition, unloadDefinition, package: packageJson };
             }
         }
     }
@@ -165,7 +163,7 @@ export class Seam {
         try {
             await Command.execute(
                 `npm install ${specifiers.join(" ")} ${this._installationFlags.join(" ")}`,
-                { currentWorkingDirectory: this._pluginsInstallationDirectory }
+                { currentWorkingDirectory: this._rootDirectory }
             );
             packageJson = await this.getPackageJson();
         } catch (error) {
@@ -176,7 +174,7 @@ export class Seam {
                 const { gray, reset } = ConsoleColor.Common;
                 console.error(
                     `NPM failed to install plugins.\n` +
-                    `\t${gray}Root: ${this._pluginsInstallationDirectory}\n` +
+                    `\t${gray}Root: ${this._rootDirectory}\n` +
                     `${formattedErrorMessage}${reset}`
                 );
             }
@@ -215,7 +213,7 @@ export class Seam {
         for (const name of this.getRegisteredPlugins()) {
             this.unregisterPlugin(name);
         }
-        await File.remove(this._pluginsInstallationDirectory);
+        await File.remove(this._rootDirectory);
     }
 
     public isPluginLoaded(name: string) {
@@ -244,17 +242,17 @@ export class Seam {
         for (const pluginSpecifier of pluginSpecifiers) {
             if (pluginSpecifier.startsWith(fileSpecifierPrefix)) {
                 const filePath = resolve(pluginSpecifier.substring(fileSpecifierPrefix.length));
-                const relativeFilePath = relative(this._pluginsInstallationDirectory, filePath);
+                const relativeFilePath = relative(this._rootDirectory, filePath);
                 const npmRelativeFilePath = posix.join(...relativeFilePath.split(separator));
                 normalizedPluginSpecifiers.push(fileSpecifierPrefix + npmRelativeFilePath);
             } else if (pluginSpecifier.startsWith(".")) {
                 const filePath = resolve(pluginSpecifier);
-                const relativeFilePath = relative(this._pluginsInstallationDirectory, filePath);
+                const relativeFilePath = relative(this._rootDirectory, filePath);
                 const npmRelativeFilePath = posix.join(...relativeFilePath.split(separator));
                 normalizedPluginSpecifiers.push(fileSpecifierPrefix + npmRelativeFilePath);
             } else if (await File.exists(pluginSpecifier)) {
                 const filePath = resolve(pluginSpecifier);
-                const relativeFilePath = relative(this._pluginsInstallationDirectory, filePath);
+                const relativeFilePath = relative(this._rootDirectory, filePath);
                 const npmRelativeFilePath = posix.join(...relativeFilePath.split(separator));
                 normalizedPluginSpecifiers.push(fileSpecifierPrefix + npmRelativeFilePath);
             } else {
@@ -279,7 +277,7 @@ export class Seam {
     }
 
     public getPackageJsonPath() {
-        return join(this._pluginsInstallationDirectory, Seam.PACKAGE_JSON_FILE);
+        return join(this._rootDirectory, Seam.PACKAGE_JSON_FILE);
     }
 
     public async getPackageJson() {
@@ -289,7 +287,7 @@ export class Seam {
     }
 
     public getNodeModulesDirectory() {
-        return join(this._pluginsInstallationDirectory, Seam.NODE_MODULES_DIRECTORY);
+        return join(this._rootDirectory, Seam.NODE_MODULES_DIRECTORY);
     }
 
     public async isPackageJsonExistent() {
@@ -301,7 +299,7 @@ export class Seam {
     }
 
     private async _generatePackageJson() {
-        const packageJson = PackageJson.Schema.validate({ type: "module", name: "@lucania/seam.plugins" });
+        const packageJson = PackageJson.Schema.validate({ type: "module", name: "seam.plugins" });
         await File.write(this.getPackageJsonPath(), JSON.stringify(packageJson, undefined, "    "), "utf8");
         return packageJson;
     }
