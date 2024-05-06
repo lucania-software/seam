@@ -10,7 +10,7 @@
     "scripts": {
         "setup": "npm install",
         "clean": "rmdir /s /q build node_modules",
-        "build:clean": "npm run clean && npm run build",
+        "build:clean": "npm run clean && npm run setup && npm run build",
         "build": "npx tsc -p source/",
         "build:watch": "npx tsc -p source/ --watch",
         "push": "npm run build:clean && npm publish --access public"
