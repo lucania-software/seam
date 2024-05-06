@@ -1,6 +1,6 @@
 {
     "name": "@lucania/seam",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "A foundational framework for powering extensible web projects.",
     "type": "module",
     "files": [
