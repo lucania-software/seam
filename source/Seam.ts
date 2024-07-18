@@ -1,14 +1,20 @@
-import { Schema } from "@lucania/schema";
 import { Command, File } from "@lucania/toolbox/server";
 import { ConsoleColor, Data } from "@lucania/toolbox/shared";
 import { join, posix, relative, resolve, sep as separator } from "path";
 import { pathToFileURL } from "url";
 import { PackageJson } from "./schema/PackageJson.js";
 
+export type OnPluginLoad<LoadResult = any> = (this: PackageJson.Type) => Promise<LoadResult> | LoadResult;
+export type OnPluginUnload<UnloadResult = any> = (this: PackageJson.Type) => Promise<UnloadResult> | UnloadResult;
+
+export type PrePluginEventCallback<Output> = (this: PackageJson.Type) => Promise<Output> | Output;
+export type PostPluginEventCallback<Input> = (this: PackageJson.Type, input: Input) => Promise<void> | void;
+export type PluginEventCallbacks<InOut> = { pre: PrePluginEventCallback<InOut>, post: PostPluginEventCallback<InOut> };
+
 type RegisteredPlugin<LoadResult = any, UnloadResult = any> = {
     package: PackageJson.Type,
-    loadDefinition?: (this: PackageJson.Type) => Promise<LoadResult> | LoadResult;
-    unloadDefinition?: (this: PackageJson.Type) => Promise<UnloadResult> | UnloadResult;
+    loadDefinition?: OnPluginLoad<LoadResult>;
+    unloadDefinition?: OnPluginUnload<UnloadResult>;
 };
 
 type LoadResults<LoadResult = any> = Record<string, LoadResult>;
@@ -19,17 +25,17 @@ export type SeamOptions = {
 
 export class Seam {
 
-    private static readonly PACKAGE_JSON_FILE = "package.json";
-    private static readonly NODE_MODULES_DIRECTORY = "node_modules";
+    public static readonly PACKAGE_JSON_FILE = "package.json";
+    public static readonly NODE_MODULES_DIRECTORY = "node_modules";
 
-    private static readonly ON_LOAD_CALLBACK_NAME = "onLoad";
-    private static readonly ON_UNLOAD_CALLBACK_NAME = "onUnload";
+    public static readonly ON_LOAD_CALLBACK_NAME = "onLoad";
+    public static readonly ON_UNLOAD_CALLBACK_NAME = "onUnload";
 
     private _rootDirectory: string;
     private _pluginsInstallationNodeModulesDirectory: string;
 
-    private readonly _pluginRegister: Record</* Plugin Name */ string, RegisteredPlugin>;
-    private readonly _specifierMap: Record</* Plugin Specifier */ string, /* Plugin Name */ string>;
+    private readonly _pluginRegister: Map</* Plugin Name */ string, RegisteredPlugin>;
+    private readonly _specifierMap: Map</* Plugin Specifier */ string, /* Plugin Name */ string>;
     private readonly _loaded: Set</* Plugin Name */ string>;
     private readonly _reloading: Set</* Plugin Name */ string>;
 
@@ -40,8 +46,8 @@ export class Seam {
 
         this._pluginsInstallationNodeModulesDirectory = join(this._rootDirectory, Seam.NODE_MODULES_DIRECTORY);
 
-        this._pluginRegister = {};
-        this._specifierMap = {};
+        this._pluginRegister = new Map();
+        this._specifierMap = new Map();
         this._loaded = new Set();
         this._reloading = new Set();
 
@@ -54,32 +60,51 @@ export class Seam {
         ];
     }
 
-    public async loadPlugins(...names: string[]): Promise<LoadResults> {
+    public async loadPlugins<InOut>(names: string[], callbacks?: PluginEventCallbacks<InOut>): Promise<LoadResults> {
         const loadResults: LoadResults = {};
         for (const name of names) {
             Data.assert(this.isPluginRegistered(name), `${name} is not a registered plugin!`);
             Data.assert(!this.isPluginLoaded(name), `${name} is already loaded!`);
-            const registeredPlugin = this._pluginRegister[name];
+            const registeredPlugin = this.getAssertedRegisteredPlugin(name);
             if (registeredPlugin.loadDefinition !== undefined) {
+                let output: InOut | undefined;
+                if (callbacks !== undefined) {
+                    output = await Promise.resolve(callbacks.pre.call(registeredPlugin.package));
+                }
                 loadResults[name] = await Promise.resolve(registeredPlugin.loadDefinition.call(registeredPlugin.package));
+                if (callbacks !== undefined && output !== undefined) {
+                    await Promise.resolve(callbacks.post.call(registeredPlugin.package, output));
+                }
             }
             this._loaded.add(name);
         }
         return loadResults;
     }
 
-    public async unloadPlugin(name: string) {
-        Data.assert(this.isPluginRegistered(name), `${name} is not a registered plugin!`);
-        Data.assert(this.isPluginLoaded(name), `${name} is not loaded!`);
-        const registeredPlugin = this._pluginRegister[name];
-        if (registeredPlugin.unloadDefinition !== undefined) {
-            await Promise.resolve(registeredPlugin.unloadDefinition.call(registeredPlugin.package));
+    public async unloadPlugin(plugin: string | RegisteredPlugin) {
+        if (typeof plugin === "string") {
+            Data.assert(this.isPluginLoaded(plugin), `${plugin} is not loaded!`);
+            const registeredPlugin = this.getAssertedRegisteredPlugin(plugin);
+            plugin = registeredPlugin;
         }
-        this._loaded.delete(name);
+        if (plugin.unloadDefinition !== undefined) {
+            await Promise.resolve(plugin.unloadDefinition.call(plugin.package));
+        }
+        this._loaded.delete(plugin.package.name);
     }
 
-    public async unloadPlugins(...names: string[]) {
-        await Promise.all(names.map(name => this.unloadPlugin(name)));
+    public async unloadPlugins<InOut>(names: string[], callbacks?: PluginEventCallbacks<InOut>) {
+        await Promise.all(names.map(async (name) => {
+            let output: InOut | undefined;
+            const registeredPlugin = this.getAssertedRegisteredPlugin(name);
+            if (callbacks !== undefined) {
+                output = await Promise.resolve(callbacks.pre.call(registeredPlugin.package));
+            }
+            await this.unloadPlugin(registeredPlugin);
+            if (callbacks !== undefined && output !== undefined) {
+                await Promise.resolve(callbacks.post.call(registeredPlugin.package, output));
+            }
+        }));
     }
 
     public async reloadPlugin(name: string, reinstall: boolean = true) {
@@ -89,21 +114,21 @@ export class Seam {
                 if (await this.isPluginInstalled(name)) {
                     await this.uninstallPlugin(name);
                 }
-                await this.installPlugins(name);
-                await this.registerPlugins(name);
-                await this.loadPlugins(name);
+                await this.installPlugins([name]);
+                await this.registerPlugins([name]);
+                await this.loadPlugins([name]);
             } else {
                 if (this.isPluginLoaded(name)) {
                     await this.unloadPlugin(name);
                 }
-                await this.loadPlugins(name);
+                await this.loadPlugins([name]);
             }
         } finally {
             this._reloading.delete(name);
         }
     }
 
-    public async registerPlugins(...names: string[]) {
+    public async registerPlugins(names: string[]) {
         for (const name of names) {
             let resolution;
             const parent = this.getPackageJsonPath();
@@ -131,7 +156,7 @@ export class Seam {
                 if (loadDefinition === undefined) {
                     console.warn(`${yellow}${name}${reset} does not export a ${Seam.ON_LOAD_CALLBACK_NAME} function.`);
                 }
-                this._pluginRegister[name] = { loadDefinition, unloadDefinition, package: packageJson };
+                this._pluginRegister.set(name, { loadDefinition, unloadDefinition, package: packageJson });
             }
         }
     }
@@ -140,7 +165,7 @@ export class Seam {
         if (this.isPluginLoaded(name)) {
             await this.unloadPlugin(name);
         }
-        delete this._pluginRegister[name];
+        this._pluginRegister.delete(name);
     }
 
     public async unregisterPlugins(...names: string[]) {
@@ -152,7 +177,7 @@ export class Seam {
      * 
      * @param specifiers An array of NPM specifiers for plugins to install.
      */
-    public async installPlugins(...specifiers: string[]) {
+    public async installPlugins(specifiers: string[]) {
         let packageJson: PackageJson.Type;
         if (await this.isPackageJsonExistent()) {
             packageJson = await this.getPackageJson();
@@ -221,7 +246,7 @@ export class Seam {
     }
 
     public isPluginRegistered(name: string) {
-        return name in this._pluginRegister;
+        return this._pluginRegister.has(name);
     }
 
     public async isPluginInstalled(name: string) {
@@ -232,8 +257,18 @@ export class Seam {
         return [...this._loaded];
     }
 
+    public getRegisteredPlugin(pluginName: string) {
+        return this._pluginRegister.get(pluginName);
+    }
+
+    public getAssertedRegisteredPlugin(pluginName: string) {
+        const plugin = this.getRegisteredPlugin(pluginName);
+        Data.assert(plugin !== undefined, `Failed to find registered plugin "${pluginName}".`);
+        return plugin;
+    }
+
     public getRegisteredPlugins() {
-        return Object.keys(this._pluginRegister);
+        return [...this._pluginRegister.keys()];
     }
 
     private async _getNormalizedPluginSpecifiers(pluginSpecifiers: string[]) {
@@ -305,15 +340,16 @@ export class Seam {
     }
 
     private _findPluginName(specifier: string, packageJson: PackageJson.Type): string | undefined {
-        if (specifier in this._specifierMap) {
-            return this._specifierMap[specifier];
+        const pluginName = this._specifierMap.get(specifier);
+        if (pluginName !== undefined) {
+            return pluginName;
         }
         if (packageJson.dependencies !== undefined) {
             for (const pluginName in packageJson.dependencies) {
                 const dependencySpecifier = packageJson.dependencies[pluginName];
                 if (specifier === dependencySpecifier) {
-                    this._specifierMap[specifier] = pluginName;
-                    this._specifierMap[pluginName] = pluginName;
+                    this._specifierMap.set(specifier, pluginName);
+                    this._specifierMap.set(pluginName, pluginName);
                     return pluginName;
                 }
             }
