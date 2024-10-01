@@ -22,7 +22,12 @@
     "license": "UNLICENSED",
     "dependencies": {
         "@lucania/schema": "file:../schema",
-        "@lucania/toolbox": "file:../toolbox"
+        "@lucania/toolbox": "file:../toolbox",
+        "@types/escodegen": "^0.0.10",
+        "acorn": "^8.12.1",
+        "acorn-walk": "^8.3.4",
+        "chokidar": "^4.0.1",
+        "escodegen": "^2.1.0"
     },
     "devDependencies": {
         "@types/node": "^20.11.30",
